@@ -22,6 +22,7 @@
 import { MandateClient } from "@mnd8t/sdk";
 import type { AuthorizeResponse } from "@mnd8t/sdk";
 import type { PaymentInstruction } from "./domain.js";
+import { archiveDecisionReceipts } from "./receipt-archive.js";
 import { log } from "./store.js";
 
 let client: MandateClient | undefined;
@@ -47,6 +48,34 @@ function strings(value: unknown): string[] {
 
 function detailString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
+}
+
+async function archiveReceiptsBestEffort(
+  decisionId: string,
+  invoiceNumber: string,
+): Promise<void> {
+  try {
+    const archived = await archiveDecisionReceipts(
+      mandateClient(),
+      decisionId,
+      invoiceNumber,
+    );
+    log("mnd8t", `archived ${archived.length} signed receipt(s) locally`, {
+      invoice: invoiceNumber,
+      detail: {
+        decisionId,
+        receiptIds: archived.map((receipt) => receipt.receiptId),
+      },
+    });
+  } catch (error) {
+    log("mnd8t", "could not archive mnd8t receipts locally", {
+      invoice: invoiceNumber,
+      detail: {
+        decisionId,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
+  }
 }
 
 export type Authority =
@@ -123,6 +152,7 @@ export async function authorise(p: PaymentInstruction): Promise<Authority> {
       detail: { decisionId, mode: result.mode, recordUrl },
     },
   );
+  await archiveReceiptsBestEffort(decisionId, p.invoiceNumber);
 
   switch (result.effective_decision) {
     case "APPROVE": {
@@ -227,6 +257,7 @@ export async function execute(
   } catch (error) {
     try {
       await mnd8t.artifacts.fail(a.artifactId, "PROVIDER_REJECTED");
+      await archiveReceiptsBestEffort(a.decisionId, p.invoiceNumber);
     } catch (reportError) {
       log("mnd8t", "failed to report bank rejection to mnd8t", {
         invoice: p.invoiceNumber,
@@ -246,6 +277,7 @@ export async function execute(
     reported_by: "CUSTOMER_EXECUTOR",
     verification: { method: "CUSTOMER_ASSERTED", verified: false },
   });
+  await archiveReceiptsBestEffort(a.decisionId, p.invoiceNumber);
   log("mnd8t", "bank execution confirmed", {
     invoice: p.invoiceNumber,
     detail: { paymentRef },
@@ -260,6 +292,8 @@ export async function execute(
  */
 export async function checkEscalation(decisionId: string): Promise<Authority> {
   const decision = await mandateClient().decisions.get(decisionId);
+  const invoiceNumber = detailString(decision.external_reference) ?? decisionId;
+  await archiveReceiptsBestEffort(decisionId, invoiceNumber);
   const status = detailString(decision.status)?.toUpperCase();
   const reasons = strings(decision.reason_codes ?? decision.reasons);
   const record = decision.authority_record;

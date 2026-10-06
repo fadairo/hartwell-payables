@@ -1,141 +1,397 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hartwell Payables</title>
-<style>
-  :root {
-    --bg: #f5f6f8; --panel: #ffffff; --ink: #1d2330; --muted: #6b7385; --line: #e2e5ea;
-    --accent: #2f5bd3; --ok: #1f8a4c; --warn: #b7791f; --bad: #c53030; --info: #6b46c1;
-    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg: #12151b; --panel: #1a1e26; --ink: #e6e8ee; --muted: #8b93a5; --line: #2a303b;
-      --accent: #7c9cff; --ok: #4cc38a; --warn: #e0a84a; --bad: #f07373; --info: #b49cf5; }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
-  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 14px 20px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
-  header h1 { font-size: 17px; margin: 0; }
-  header h1 small { color: var(--muted); font-weight: 400; }
-  .status { padding: 3px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); color: var(--muted); max-width: 520px; }
-  .status.on { color: var(--ok); border-color: var(--ok); }
-  .spacer { flex: 1; }
-  button { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 6px 12px; border-radius: 6px; cursor: pointer; }
-  button:hover { border-color: var(--accent); }
-  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-  button.toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
-  button.danger[aria-pressed="true"] { border-color: var(--bad); color: var(--bad); }
-  main { display: grid; grid-template-columns: 230px minmax(0, 1fr) 360px; gap: 16px; padding: 16px 20px; }
-  @media (max-width: 1200px) { main { grid-template-columns: 1fr; } }
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 0 10px; }
-  .scenarios button { display: block; width: 100%; text-align: left; margin-bottom: 8px; }
-  .scenarios small { display: block; color: var(--muted); font-size: 12px; }
-  table { width: 100%; border-collapse: collapse; }
-  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { font-size: 12px; color: var(--muted); font-weight: 600; }
-  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .mono { font-family: var(--mono); font-size: 12px; }
-  .changed { color: var(--bad); font-weight: 600; }
-  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid currentColor; white-space: nowrap; }
-  .PAID { color: var(--ok); } .BLOCKED, .FAILED { color: var(--bad); } .AWAITING_APPROVAL { color: var(--warn); }
-  .INBOX, .PROCESSING { color: var(--muted); }
-  .outcome { color: var(--muted); font-size: 12px; }
-  .auth { font-size: 12px; margin-top: 3px; }
-  .auth a { color: var(--accent); }
-  .stack { display: grid; gap: 16px; align-content: start; }
-  .feed { max-height: 520px; overflow: auto; font-size: 12px; }
-  .feed div { padding: 4px 0; border-bottom: 1px dashed var(--line); }
-  .src { font-family: var(--mono); font-size: 11px; padding: 0 5px; border-radius: 4px; margin-right: 4px; }
-  .src-mnd8t { color: var(--info); border: 1px solid var(--info); }
-  .src-bank { color: var(--ok); border: 1px solid var(--ok); }
-  .src-agent { color: var(--accent); border: 1px solid var(--accent); }
-  .src-inbox, .src-system, .src-approver { color: var(--muted); border: 1px solid var(--line); }
-  .muted { color: var(--muted); }
-  .empty { color: var(--muted); padding: 10px 0; }
-  .total { font-weight: 600; margin-top: 8px; }
-  details summary { cursor: pointer; color: var(--muted); }
-  pre { white-space: pre-wrap; word-break: break-all; font-size: 11px; margin: 4px 0; }
-</style>
-</head>
-<body>
-<header>
-  <h1>Hartwell Payables <small>· Hartwell Field Robotics Ltd</small></h1>
-  <span id="status" class="status"></span>
-  <span class="spacer"></span>
-  <button class="primary" id="run">Run agent now</button>
-  <button class="toggle" id="auto" aria-pressed="false">Auto-run</button>
-  <button class="danger" id="outage" aria-pressed="false">Bank outage</button>
-  <button id="reset">Reset</button>
-</header>
-<main>
-  <section class="scenarios">
-    <h2>Drop an invoice</h2>
-    <div id="scenarios"></div>
-  </section>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hartwell Payables</title>
+    <style>
+      :root {
+        --bg: #f5f6f8;
+        --panel: #ffffff;
+        --ink: #1d2330;
+        --muted: #6b7385;
+        --line: #e2e5ea;
+        --accent: #2f5bd3;
+        --ok: #1f8a4c;
+        --warn: #b7791f;
+        --bad: #c53030;
+        --info: #6b46c1;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #12151b;
+          --panel: #1a1e26;
+          --ink: #e6e8ee;
+          --muted: #8b93a5;
+          --line: #2a303b;
+          --accent: #7c9cff;
+          --ok: #4cc38a;
+          --warn: #e0a84a;
+          --bad: #f07373;
+          --info: #b49cf5;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          14px/1.45 system-ui,
+          -apple-system,
+          Segoe UI,
+          sans-serif;
+      }
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        padding: 14px 20px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+        position: sticky;
+        top: 0;
+        z-index: 2;
+      }
+      header h1 {
+        font-size: 17px;
+        margin: 0;
+      }
+      header h1 small {
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .status {
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        border: 1px solid var(--line);
+        color: var(--muted);
+        max-width: 520px;
+      }
+      .status.on {
+        color: var(--ok);
+        border-color: var(--ok);
+      }
+      .spacer {
+        flex: 1;
+      }
+      button {
+        font: inherit;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--ink);
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      button:hover {
+        border-color: var(--accent);
+      }
+      button.primary {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      button.toggle[aria-pressed="true"] {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      button.danger[aria-pressed="true"] {
+        border-color: var(--bad);
+        color: var(--bad);
+      }
+      main {
+        display: grid;
+        grid-template-columns: 230px minmax(0, 1fr) 360px;
+        gap: 16px;
+        padding: 16px 20px;
+      }
+      @media (max-width: 1200px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+      }
+      section {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 14px;
+        min-width: 0;
+      }
+      h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--muted);
+        margin: 0 0 10px;
+      }
+      .scenarios button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        margin-bottom: 8px;
+      }
+      .scenarios small {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 7px 8px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      th {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      td.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .mono {
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .changed {
+        color: var(--bad);
+        font-weight: 600;
+      }
+      .pill {
+        display: inline-block;
+        padding: 1px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        border: 1px solid currentColor;
+        white-space: nowrap;
+      }
+      .PAID {
+        color: var(--ok);
+      }
+      .BLOCKED,
+      .FAILED {
+        color: var(--bad);
+      }
+      .AWAITING_APPROVAL {
+        color: var(--warn);
+      }
+      .INBOX,
+      .PROCESSING {
+        color: var(--muted);
+      }
+      .outcome {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .auth {
+        font-size: 12px;
+        margin-top: 3px;
+      }
+      .auth a {
+        color: var(--accent);
+      }
+      .stack {
+        display: grid;
+        gap: 16px;
+        align-content: start;
+      }
+      .feed {
+        max-height: 520px;
+        overflow: auto;
+        font-size: 12px;
+      }
+      .feed div {
+        padding: 4px 0;
+        border-bottom: 1px dashed var(--line);
+      }
+      .src {
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 0 5px;
+        border-radius: 4px;
+        margin-right: 4px;
+      }
+      .src-mnd8t {
+        color: var(--info);
+        border: 1px solid var(--info);
+      }
+      .src-bank {
+        color: var(--ok);
+        border: 1px solid var(--ok);
+      }
+      .src-agent {
+        color: var(--accent);
+        border: 1px solid var(--accent);
+      }
+      .src-inbox,
+      .src-system,
+      .src-approver {
+        color: var(--muted);
+        border: 1px solid var(--line);
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .empty {
+        color: var(--muted);
+        padding: 10px 0;
+      }
+      .total {
+        font-weight: 600;
+        margin-top: 8px;
+      }
+      details summary {
+        cursor: pointer;
+        color: var(--muted);
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-all;
+        font-size: 11px;
+        margin: 4px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Hartwell Payables <small>· Hartwell Field Robotics Ltd</small></h1>
+      <span id="status" class="status"></span>
+      <span class="spacer"></span>
+      <button class="primary" id="run">Run agent now</button>
+      <button class="toggle" id="auto" aria-pressed="false">Auto-run</button>
+      <button class="danger" id="outage" aria-pressed="false">
+        Bank outage
+      </button>
+      <button id="reset">Reset</button>
+    </header>
+    <main>
+      <section class="scenarios">
+        <h2>Drop an invoice</h2>
+        <div id="scenarios"></div>
+      </section>
 
-  <div class="stack">
-    <section>
-      <h2>Invoices</h2>
-      <table>
-        <thead><tr><th>Invoice</th><th>Supplier</th><th class="num">Amount</th><th>Pay to</th><th>Status</th></tr></thead>
-        <tbody id="invoices"></tbody>
-      </table>
-    </section>
-    <section>
-      <h2>Approver inbox</h2>
-      <div id="approvals"></div>
-    </section>
-    <section>
-      <h2>Bank: payments sent</h2>
-      <table>
-        <thead><tr><th>Ref</th><th>Invoice</th><th>To</th><th class="num">Amount</th></tr></thead>
-        <tbody id="payments"></tbody>
-      </table>
-      <div class="total" id="total"></div>
-    </section>
-  </div>
+      <div class="stack">
+        <section>
+          <h2>Invoices</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice</th>
+                <th>Supplier</th>
+                <th class="num">Amount</th>
+                <th>Pay to</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="invoices"></tbody>
+          </table>
+        </section>
+        <section>
+          <h2>Approver inbox</h2>
+          <div id="approvals"></div>
+        </section>
+        <section>
+          <h2>Bank: payments sent</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Ref</th>
+                <th>Invoice</th>
+                <th>To</th>
+                <th class="num">Amount</th>
+              </tr>
+            </thead>
+            <tbody id="payments"></tbody>
+          </table>
+          <div class="total" id="total"></div>
+        </section>
+        <section>
+          <h2>Stored mnd8t receipts</h2>
+          <div class="muted">
+            Signed receipt copies are saved on this Hartwell server and survive
+            Reset and restart.
+          </div>
+          <div id="receipts"></div>
+        </section>
+      </div>
 
-  <section>
-    <h2>Activity</h2>
-    <div class="feed" id="feed"></div>
-  </section>
-</main>
-<script>
-const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-const gbp = (p) => "£" + (p / 100).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const post = (path, body) => fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body ?? {}) });
+      <section>
+        <h2>Activity</h2>
+        <div class="feed" id="feed"></div>
+      </section>
+    </main>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const esc = (s) =>
+        String(s ?? "").replace(
+          /[&<>"]/g,
+          (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
+        );
+      const gbp = (p) =>
+        "£" +
+        (p / 100).toLocaleString("en-GB", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+      const post = (path, body) =>
+        fetch(path, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body ?? {}),
+        });
 
-let scenariosDrawn = false;
-let lastFeedKey = "";
+      let scenariosDrawn = false;
+      let lastFeedKey = "";
 
-async function refresh() {
-  const s = await (await fetch("/api/state")).json();
-  const integrated = !s.integrationStatus.startsWith("not integrated");
-  $("status").textContent = "mnd8t: " + s.integrationStatus;
-  $("status").className = "status" + (integrated ? " on" : "");
-  $("auto").setAttribute("aria-pressed", s.agentAuto);
-  $("outage").setAttribute("aria-pressed", s.bankOutage);
+      async function refresh() {
+        const s = await (await fetch("/api/state")).json();
+        const integrated = !s.integrationStatus.startsWith("not integrated");
+        $("status").textContent = "mnd8t: " + s.integrationStatus;
+        $("status").className = "status" + (integrated ? " on" : "");
+        $("auto").setAttribute("aria-pressed", s.agentAuto);
+        $("outage").setAttribute("aria-pressed", s.bankOutage);
 
-  if (!scenariosDrawn) {
-    $("scenarios").innerHTML = s.scenarios.map((x) =>
-      `<button data-s="${x.key}">${esc(x.label)}<small>${esc(x.hint)}</small></button>`).join("");
-    $("scenarios").onclick = (e) => { const b = e.target.closest("button"); if (b) post("/api/scenarios/" + b.dataset.s).then(refresh); };
-    scenariosDrawn = true;
-  }
+        if (!scenariosDrawn) {
+          $("scenarios").innerHTML = s.scenarios
+            .map(
+              (x) =>
+                `<button data-s="${x.key}">${esc(x.label)}<small>${esc(x.hint)}</small></button>`,
+            )
+            .join("");
+          $("scenarios").onclick = (e) => {
+            const b = e.target.closest("button");
+            if (b) post("/api/scenarios/" + b.dataset.s).then(refresh);
+          };
+          scenariosDrawn = true;
+        }
 
-  const onFile = Object.fromEntries(s.suppliers.map((x) => [x.id, x]));
-  $("invoices").innerHTML = s.invoices.length ? s.invoices.map((i) => {
-    const sup = onFile[i.supplierId];
-    const changed = sup && sup.bankAccount !== i.payTo;
-    const a = i.authority;
-    const auth = a ? `<div class="auth">mnd8t: <b>${esc(a.decision)}</b> ${esc((a.reasons || []).join(", "))}
+        const onFile = Object.fromEntries(s.suppliers.map((x) => [x.id, x]));
+        $("invoices").innerHTML = s.invoices.length
+          ? s.invoices
+              .map((i) => {
+                const sup = onFile[i.supplierId];
+                const changed = sup && sup.bankAccount !== i.payTo;
+                const a = i.authority;
+                const auth = a
+                  ? `<div class="auth">mnd8t: <b>${esc(a.decision)}</b> ${esc((a.reasons || []).join(", "))}
       ${a.approvalUrl ? ` · <a href="${esc(a.approvalUrl)}" target="_blank">approval link</a>` : ""}
-      ${a.decisionId ? ` · <a href="https://mnd8t.com/dashboard/decisions/${esc(a.decisionId)}" target="_blank">decision</a>` : ""}</div>` : "";
-    return `<tr>
+      ${a.decisionId ? ` · <a href="https://mnd8t.com/dashboard/decisions/${esc(a.decisionId)}" target="_blank">decision</a>` : ""}</div>`
+                  : "";
+                return `<tr>
       <td><b>${esc(i.number)}</b><div class="muted">${esc(i.description)}</div></td>
       <td>${esc(sup ? sup.name : i.supplierId)}<div class="muted">${esc(i.purpose)}</div></td>
       <td class="num">${gbp(i.amountPence)}</td>
@@ -143,34 +399,72 @@ async function refresh() {
       <td><span class="pill ${i.status}">${i.status.replace("_", " ")}</span>
         <div class="outcome">${esc(i.outcome)}${i.paymentRef ? " · " + esc(i.paymentRef) : ""}</div>${auth}</td>
     </tr>`;
-  }).join("") : `<tr><td colspan="5" class="empty">No invoices. Drop one from the left, then run the agent.</td></tr>`;
+              })
+              .join("")
+          : `<tr><td colspan="5" class="empty">No invoices. Drop one from the left, then run the agent.</td></tr>`;
 
-  const waiting = s.invoices.filter((i) => i.status === "AWAITING_APPROVAL");
-  $("approvals").innerHTML = waiting.length ? waiting.map((i) =>
-    `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b>${esc(i.number)}</b> ${gbp(i.amountPence)} to ${esc(onFile[i.supplierId]?.name)}
+        const waiting = s.invoices.filter(
+          (i) => i.status === "AWAITING_APPROVAL",
+        );
+        $("approvals").innerHTML = waiting.length
+          ? waiting
+              .map(
+                (i) =>
+                  `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b>${esc(i.number)}</b> ${gbp(i.amountPence)} to ${esc(onFile[i.supplierId]?.name)}
      <span class="muted">— ${esc((i.authority?.reasons || []).join(", "))}</span>
-     ${i.authority?.approvalUrl ? `<br><a href="${esc(i.authority.approvalUrl)}" target="_blank">Open the approval page →</a>` : `<br><span class="muted">no approval link: your integration should surface one</span>`}</div>`).join("")
-    : `<div class="empty">Nothing waiting. Escalated invoices appear here with their approval link.</div>`;
+     ${i.authority?.approvalUrl ? `<br><a href="${esc(i.authority.approvalUrl)}" target="_blank">Open the approval page →</a>` : `<br><span class="muted">no approval link: your integration should surface one</span>`}</div>`,
+              )
+              .join("")
+          : `<div class="empty">Nothing waiting. Escalated invoices appear here with their approval link.</div>`;
 
-  $("payments").innerHTML = s.payments.length ? s.payments.map((p) =>
-    `<tr><td class="mono">${esc(p.ref)}</td><td>${esc(p.invoiceNumber)}</td><td class="mono">${esc(p.payTo)}</td><td class="num">${gbp(p.amountPence)}</td></tr>`).join("")
-    : `<tr><td colspan="4" class="empty">No money has moved.</td></tr>`;
-  $("total").textContent = "Total paid out: " + gbp(s.payments.reduce((t, p) => t + p.amountPence, 0));
+        $("payments").innerHTML = s.payments.length
+          ? s.payments
+              .map(
+                (p) =>
+                  `<tr><td class="mono">${esc(p.ref)}</td><td>${esc(p.invoiceNumber)}</td><td class="mono">${esc(p.payTo)}</td><td class="num">${gbp(p.amountPence)}</td></tr>`,
+              )
+              .join("")
+          : `<tr><td colspan="4" class="empty">No money has moved.</td></tr>`;
+        $("total").textContent =
+          "Total paid out: " +
+          gbp(s.payments.reduce((t, p) => t + p.amountPence, 0));
 
-  const feedKey = s.log.length + (s.log[0]?.at ?? "");
-  if (feedKey === lastFeedKey) return;
-  lastFeedKey = feedKey;
-  $("feed").innerHTML = s.log.map((l) =>
-    `<div><span class="muted">${l.at.slice(11, 19)}</span> <span class="src src-${l.source}">${l.source}</span>${l.invoice ? `<b>${esc(l.invoice)}</b> ` : ""}${esc(l.message)}
-     ${l.detail !== undefined ? `<details><summary>detail</summary><pre>${esc(JSON.stringify(l.detail, null, 2))}</pre></details>` : ""}</div>`).join("");
-}
+        $("receipts").innerHTML = s.receipts.length
+          ? s.receipts
+              .map(
+                (r) =>
+                  `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b>${esc(r.invoiceNumber)}</b>
+      <div class="mono muted">${esc(r.receiptId)}</div>
+      <a href="/api/receipts/${encodeURIComponent(r.receiptId)}" target="_blank" rel="noopener">View signed receipt ↗</a>
+      · <a href="https://mnd8t.com/dashboard/decisions/${encodeURIComponent(r.decisionId)}" target="_blank" rel="noopener">Decision</a></div>`,
+              )
+              .join("")
+          : `<div class="empty">No mnd8t receipts archived yet.</div>`;
 
-$("run").onclick = () => post("/api/agent/run").then(refresh);
-$("auto").onclick = () => post("/api/agent/auto", { on: $("auto").getAttribute("aria-pressed") !== "true" }).then(refresh);
-$("outage").onclick = () => post("/api/bank/outage", { on: $("outage").getAttribute("aria-pressed") !== "true" }).then(refresh);
-$("reset").onclick = () => post("/api/reset").then(refresh);
-refresh();
-setInterval(() => refresh().catch(() => {}), 1000);
-</script>
-</body>
+        const feedKey = s.log.length + (s.log[0]?.at ?? "");
+        if (feedKey === lastFeedKey) return;
+        lastFeedKey = feedKey;
+        $("feed").innerHTML = s.log
+          .map(
+            (l) =>
+              `<div><span class="muted">${l.at.slice(11, 19)}</span> <span class="src src-${l.source}">${l.source}</span>${l.invoice ? `<b>${esc(l.invoice)}</b> ` : ""}${esc(l.message)}
+     ${l.detail !== undefined ? `<details><summary>detail</summary><pre>${esc(JSON.stringify(l.detail, null, 2))}</pre></details>` : ""}</div>`,
+          )
+          .join("");
+      }
+
+      $("run").onclick = () => post("/api/agent/run").then(refresh);
+      $("auto").onclick = () =>
+        post("/api/agent/auto", {
+          on: $("auto").getAttribute("aria-pressed") !== "true",
+        }).then(refresh);
+      $("outage").onclick = () =>
+        post("/api/bank/outage", {
+          on: $("outage").getAttribute("aria-pressed") !== "true",
+        }).then(refresh);
+      $("reset").onclick = () => post("/api/reset").then(refresh);
+      refresh();
+      setInterval(() => refresh().catch(() => {}), 1000);
+    </script>
+  </body>
 </html>

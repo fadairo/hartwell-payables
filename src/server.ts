@@ -3,12 +3,19 @@
  * UI and a small JSON API it polls. No framework: node:http only.
  */
 import { readFileSync } from "node:fs";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getStoredReceipt, listStoredReceipts } from "./receipt-archive.js";
 
 try {
-  process.loadEnvFile(join(dirname(fileURLToPath(import.meta.url)), "..", ".env"));
+  process.loadEnvFile(
+    join(dirname(fileURLToPath(import.meta.url)), "..", ".env"),
+  );
 } catch {
   // No .env yet: fine until you integrate.
 }
@@ -20,14 +27,26 @@ const { integrationStatus } = await import("./mnd8t.js");
 const { log, reset, store } = await import("./store.js");
 
 const PORT = Number(process.env.PORT ?? 5050);
-const UI = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "index.html");
+const UI = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "public",
+  "index.html",
+);
 
-function send(res: ServerResponse, status: number, body: unknown, type = "application/json"): void {
+function send(
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+  type = "application/json",
+): void {
   res.writeHead(status, { "content-type": type, "cache-control": "no-store" });
   res.end(type === "application/json" ? JSON.stringify(body) : String(body));
 }
 
-async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+async function readJson(
+  req: IncomingMessage,
+): Promise<Record<string, unknown>> {
   let raw = "";
   for await (const chunk of req) raw += chunk;
   return raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
@@ -36,23 +55,51 @@ async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", "http://localhost");
   try {
-    if (req.method === "GET" && url.pathname === "/") return send(res, 200, readFileSync(UI, "utf8"), "text/html; charset=utf-8");
+    if (req.method === "GET" && url.pathname === "/")
+      return send(
+        res,
+        200,
+        readFileSync(UI, "utf8"),
+        "text/html; charset=utf-8",
+      );
 
     if (req.method === "GET" && url.pathname === "/api/state") {
       return send(res, 200, {
         integrationStatus,
+        receipts: await listStoredReceipts(),
         agentAuto: store.agentAuto,
         bankOutage: store.bankOutage,
         invoices: [...store.invoices].reverse(),
         payments: [...store.payments].reverse(),
         log: store.log.slice(-200).reverse(),
         suppliers: SUPPLIERS,
-        scenarios: Object.entries(SCENARIOS).map(([key, s]) => ({ key, label: s.label, hint: s.hint })),
+        scenarios: Object.entries(SCENARIOS).map(([key, s]) => ({
+          key,
+          label: s.label,
+          hint: s.hint,
+        })),
       });
     }
 
+    if (req.method === "GET" && url.pathname === "/api/receipts") {
+      return send(res, 200, { receipts: await listStoredReceipts() });
+    }
+
+    const receiptMatch = url.pathname.match(
+      /^\/api\/receipts\/([a-zA-Z0-9_-]+)$/,
+    );
+    if (req.method === "GET" && receiptMatch) {
+      const receipt = await getStoredReceipt(receiptMatch[1]!);
+      return receipt
+        ? send(res, 200, receipt)
+        : send(res, 404, {
+            error: "receipt not found in Hartwell's local archive",
+          });
+    }
+
     const scenario = url.pathname.match(/^\/api\/scenarios\/(\w+)$/);
-    if (req.method === "POST" && scenario) return send(res, 201, drop(scenario[1]!));
+    if (req.method === "POST" && scenario)
+      return send(res, 201, drop(scenario[1]!));
 
     if (req.method === "POST" && url.pathname === "/api/agent/run") {
       await runOnce();
@@ -65,7 +112,10 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === "POST" && url.pathname === "/api/bank/outage") {
       store.bankOutage = Boolean((await readJson(req))["on"]);
-      log("system", `bank outage ${store.bankOutage ? "ON: payments will be rejected" : "off"}`);
+      log(
+        "system",
+        `bank outage ${store.bankOutage ? "ON: payments will be rejected" : "off"}`,
+      );
       return send(res, 200, { bankOutage: store.bankOutage });
     }
     if (req.method === "POST" && url.pathname === "/api/reset") {
@@ -79,5 +129,8 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  log("system", `Hartwell Payables on http://localhost:${PORT} (${integrationStatus})`);
+  log(
+    "system",
+    `Hartwell Payables on http://localhost:${PORT} (${integrationStatus})`,
+  );
 });

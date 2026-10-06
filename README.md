@@ -25,8 +25,10 @@ npm start             # http://localhost:5050
 
 On the left, drop invoices into the inbox, then press **Run agent now**, or
 turn on **Auto-run**. **Bank outage** makes the bank reject payments.
-**Reset** clears everything; so does restarting the server, since state is in
-memory.
+Invoices, payments, and activity are in memory: **Reset** or a server restart
+clears them. Signed mnd8t receipts are also archived locally under
+`.data/mnd8t-receipts/`; they survive reset and restart and are listed in the
+**Stored mnd8t receipts** panel. The archive is ignored by Git.
 
 ## Before you integrate
 
@@ -49,13 +51,13 @@ been in [FINDINGS.md](FINDINGS.md); that is the point of the exercise.
 
 ## Layout
 
-| File | What it is | Touch it? |
-|---|---|---|
-| `src/mnd8t.ts` | the integration seam: `authorise`, `execute`, `checkEscalation` | **yes, this is your work** |
-| `src/agent.ts` | the AI agent: reads invoices, calls the seam, pays | no |
-| `src/bank.ts` | the simulated bank: pays anything it is told to | no |
-| `src/domain.ts` | supplier master (with bank accounts on file), invoice types | no |
-| `src/scenarios.ts` | the invoices you can drop | add your own if you like |
-| `src/server.ts`, `public/index.html` | the app and its UI | no |
+| File                                 | What it is                                                      | Touch it?                  |
+| ------------------------------------ | --------------------------------------------------------------- | -------------------------- |
+| `src/mnd8t.ts`                       | the integration seam: `authorise`, `execute`, `checkEscalation` | **yes, this is your work** |
+| `src/agent.ts`                       | the AI agent: reads invoices, calls the seam, pays              | no                         |
+| `src/bank.ts`                        | the simulated bank: pays anything it is told to                 | no                         |
+| `src/domain.ts`                      | supplier master (with bank accounts on file), invoice types     | no                         |
+| `src/scenarios.ts`                   | the invoices you can drop                                       | add your own if you like   |
+| `src/server.ts`, `public/index.html` | the app and its UI                                              | no                         |
 
 A worked solution is on the `solution` branch. Only look if you are stuck.
