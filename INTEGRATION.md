@@ -63,8 +63,13 @@ the destination.
 | New counterparties need approval | on |
 | Schedule | off, or the agent will be refused outside the hours you set |
 
-Open the mandate, use **Simulate** to check a few amounts, then **Attest and
-publish** (role: Finance Director; source: corporate policy).
+Open the mandate, use **Simulate** to check a few amounts. Fix anything with
+**Edit draft**, then **Attest and publish** (role: Finance Director; source:
+corporate policy).
+
+Check it before you publish: **a published mandate is final**. To change it
+later you create a replacement, publish that, and revoke the original (see
+"Changing a mandate" below).
 
 **Developers → New API key**, preset **AGENT**. This is the key the payables
 agent carries. It can ask for decisions and use artifacts; it cannot change
@@ -166,26 +171,47 @@ that applied, and the signed record.
 
 Publish the mandate in SHADOW instead. The agent keeps paying everything, but
 every invoice shows what mnd8t *would* have decided. When you are satisfied,
-switch to ENFORCE. The dashboard cannot edit a published mandate (see
-FINDINGS.md), so do it with the admin key:
+go live by **replacing** the mandate with an ENFORCE one, as below. A
+published mandate's mode cannot be switched in place.
 
-```bash
-curl -X PATCH https://mnd8t.com/api/v1/mandates/<id> \
-  -H "Authorization: Bearer $ADMIN_KEY" -H "Content-Type: application/json" \
-  -d '{"mode":"ENFORCE"}'
-```
+## Changing a mandate
 
-That takes effect immediately. No new version is drafted or published, and
-nobody attests to the change (FINDINGS.md #2). Changing the *rules* is
-different: PATCH with a `policy` creates a draft version, which you then
-publish (with attestation) from the mandate page or with
-`POST /v1/mandates/<id>/publish`.
+Published mandates are never amended. Every decision names a mandate whose
+terms have not changed since they were attested. To change limits, suppliers,
+purposes or mode:
+
+1. On the mandate's page, choose **Create replacement**. The builder opens
+   with the current terms copied in, including any the form does not show.
+2. Make the change (for example, Mode → ENFORCE), save the draft, and
+   **Attest and publish** it. From that moment the agent is evaluated against
+   the replacement: an agent always runs under its most recently published,
+   unrevoked mandate.
+3. Revoke the original mandate, so it cannot come back into force if the
+   replacement is ever revoked.
+
+Drafting the replacement does not affect the live mandate, so there is no gap
+in authority while you prepare it. Via the API it is the same three steps:
+`POST /v1/mandates`, `POST /v1/mandates/<new>/publish`, then
+`POST /v1/mandates/<old>/revoke`, all with the admin key. A `PATCH` on a
+published mandate returns `409`.
+
+> **Deployment note.** Revoke-and-replace, **Edit draft** and **Create
+> replacement** arrive with mnd8t PR #68. Until that is deployed, mnd8t.com
+> still accepts `PATCH` on a published mandate and has no edit or
+> replacement screens. Use the API steps above rather than an in-place
+> amendment, so your integration does not depend on behaviour that is going
+> away.
 
 ## 7. Further exercises
 
-- **Onboard Quillfeather.** Approve it on the Counterparties page, add it and
-  `design_services` to the mandate (a new version, via the API as above),
-  publish, and resend the invoice.
+- **Onboard Quillfeather.** Approve it on the Counterparties page, then
+  replace the mandate with one that adds `quillfeather_design` to the
+  allowed counterparties and `design_services` to the purposes. Publish it,
+  revoke the old one, and resend the invoice. Watch the decision link: it now
+  names the new mandate.
+- **Replace without a gap.** Drop a routine invoice while the replacement is
+  still a draft, and again after publishing it. Both should be decided: the
+  first under the old mandate, the second under the new one.
 - **Verify the record yourself.** In `execute`, after confirming, fetch the
   decision's receipt and check it with `receipts.verify(...)`, offline,
   against the published keys.
