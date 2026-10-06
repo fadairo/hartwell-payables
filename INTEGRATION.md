@@ -195,13 +195,6 @@ in authority while you prepare it. Via the API it is the same three steps:
 `POST /v1/mandates/<old>/revoke`, all with the admin key. A `PATCH` on a
 published mandate returns `409`.
 
-> **Deployment note.** Revoke-and-replace, **Edit draft** and **Create
-> replacement** arrive with mnd8t PR #68. Until that is deployed, mnd8t.com
-> still accepts `PATCH` on a published mandate and has no edit or
-> replacement screens. Use the API steps above rather than an in-place
-> amendment, so your integration does not depend on behaviour that is going
-> away.
-
 ## 7. Further exercises
 
 - **Onboard Quillfeather.** Approve it on the Counterparties page, then
